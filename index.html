@@ -60,7 +60,7 @@
 
     <script>
         // Charger les données depuis le fichier JSON
-        fetch('ecoles.json')
+        fetch('fr-en-annuaire-education.json')
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`Erreur HTTP! statut: ${response.status}`);
@@ -69,6 +69,9 @@
             })
             .then(data => {
                 console.log("Données chargées avec succès :", data);
+                if (!data || data.length === 0) {
+                    throw new Error("Le fichier JSON est vide ou incorrect.");
+                }
                 const ecoles = data;
                 populateFilters(ecoles);
                 displayResults(ecoles);
@@ -92,13 +95,28 @@
             })
             .catch(error => {
                 console.error('Erreur lors du chargement des données :', error);
-                document.getElementById('results').innerHTML = `<p class="no-results">Erreur de chargement des données : ${error.message}. Vérifiez que le fichier fr-en-annuaire-education.json est présent.</p>`;
+                document.getElementById('results').innerHTML = `<p class="no-results">Erreur de chargement des données : ${error.message}. Vérifiez que le fichier fr-en-annuaire-education.json est présent et correctement formaté.</p>`;
             });
 
         // Remplir les filtres avec les valeurs uniques
         function populateFilters(ecoles) {
+            // Vérifier que les colonnes existent
+            if (!ecoles[0].hasOwnProperty('commune') && !ecoles[0].hasOwnProperty('Commune')) {
+                console.error("La colonne 'commune' est introuvable dans les données.");
+                return;
+            }
+
+            if (!ecoles[0].hasOwnProperty('circonscription') && !ecoles[0].hasOwnProperty('Circonscription')) {
+                console.error("La colonne 'circonscription' est introuvable dans les données.");
+                return;
+            }
+
+            // Déterminer les clés à utiliser
+            const communeKey = ecoles[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
+            const circonscriptionKey = ecoles[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
+
             // Extraire les valeurs uniques pour les communes
-            const communes = [...new Set(ecoles.map(ecole => ecole.commune))].filter(commune => commune);
+            const communes = [...new Set(ecoles.map(ecole => ecole[communeKey]))].filter(commune => commune);
             const communeFilter = document.getElementById('commune-filter');
             communes.forEach(commune => {
                 const option = document.createElement('option');
@@ -108,7 +126,7 @@
             });
 
             // Extraire les valeurs uniques pour les circonscriptions
-            const circonscriptions = [...new Set(ecoles.map(ecole => ecole.circonscription))].filter(circonscription => circonscription);
+            const circonscriptions = [...new Set(ecoles.map(ecole => ecole[circonscriptionKey]))].filter(circonscription => circonscription);
             const circonscriptionFilter = document.getElementById('circonscription-filter');
             circonscriptions.forEach(circonscription => {
                 const option = document.createElement('option');
@@ -127,6 +145,10 @@
             fetch('fr-en-annuaire-education.json')
                 .then(response => response.json())
                 .then(ecoles => {
+                    if (!ecoles || ecoles.length === 0) {
+                        throw new Error("Le fichier JSON est vide ou incorrect.");
+                    }
+
                     let filtered = [...ecoles];
 
                     if (searchTerm !== '') {
@@ -136,14 +158,20 @@
                     }
 
                     if (selectedCommune !== '') {
-                        filtered = filtered.filter(ecole => ecole.commune === selectedCommune);
+                        const communeKey = ecoles[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
+                        filtered = filtered.filter(ecole => ecole[communeKey] === selectedCommune);
                     }
 
                     if (selectedCirconscription !== '') {
-                        filtered = filtered.filter(ecole => ecole.circonscription === selectedCirconscription);
+                        const circonscriptionKey = ecoles[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
+                        filtered = filtered.filter(ecole => ecole[circonscriptionKey] === selectedCirconscription);
                     }
 
                     displayResults(filtered);
+                })
+                .catch(error => {
+                    console.error('Erreur lors de l\'application des filtres :', error);
+                    document.getElementById('results').innerHTML = `<p class="no-results">Erreur lors de l'application des filtres : ${error.message}</p>`;
                 });
         }
 
@@ -154,7 +182,11 @@
             document.getElementById('circonscription-filter').value = '';
             fetch('fr-en-annuaire-education.json')
                 .then(response => response.json())
-                .then(ecoles => displayResults(ecoles));
+                .then(ecoles => displayResults(ecoles))
+                .catch(error => {
+                    console.error('Erreur lors de la réinitialisation des filtres :', error);
+                    document.getElementById('results').innerHTML = `<p class="no-results">Erreur lors de la réinitialisation des filtres : ${error.message}</p>`;
+                });
         }
 
         // Afficher les résultats
@@ -167,6 +199,11 @@
                 return;
             }
 
+            // Déterminer les clés à utiliser
+            const communeKey = results[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
+            const circonscriptionKey = results[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
+            const adresseKey = results[0].hasOwnProperty('adresse_1') ? 'adresse_1' : 'adresse';
+
             results.forEach(ecole => {
                 const div = document.createElement('div');
                 div.className = 'result';
@@ -174,9 +211,9 @@
                 // Afficher les informations de l'école
                 div.innerHTML = `
                     <strong>${ecole.nom_etablissement}</strong><br>
-                    Commune : ${ecole.commune}<br>
-                    Circonscription : ${ecole.circonscription}<br>
-                    ${ecole.adresse_1 ? `<span class="coordinates">Adresse : ${ecole.adresse_1}</span>` : ''}
+                    Commune : ${ecole[communeKey]}<br>
+                    Circonscription : ${ecole[circonscriptionKey]}<br>
+                    ${ecole[adresseKey] ? `<span class="coordinates">Adresse : ${ecole[adresseKey]}</span>` : ''}
                 `;
                 resultsDiv.appendChild(div);
             });
