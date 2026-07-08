@@ -1,0 +1,87 @@
+### **Code pour `index.html` :**
+```html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Recherche d'écoles</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 800px;
+        }
+        #search {
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .filters {
+            margin-bottom: 20px;
+        }
+        select, button {
+            padding: 8px;
+            margin-right: 10px;
+        }
+        .result {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .no-results {
+            color: #666;
+            font-style: italic;
+        }
+        .coordinates {
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Recherche d'écoles</h1>
+
+    <!-- Recherche par nom -->
+    <input type="text" id="search" placeholder="Rechercher une école par nom...">
+
+    <!-- Filtres par commune et circonscription -->
+    <div class="filters">
+        <select id="commune-filter">
+            <option value="">-- Filtrer par commune --</option>
+        </select>
+        <select id="circonscription-filter">
+            <option value="">-- Filtrer par circonscription --</option>
+        </select>
+        <button onclick="resetFilters()">Réinitialiser</button>
+    </div>
+
+    <!-- Résultats -->
+    <div id="results"></div>
+
+    <script>
+        // Charger les données depuis le fichier JSON
+        fetch('ecoles.json')
+            .then(response => response.json())
+            .then(data => {
+                const ecoles = data;
+                populateFilters(ecoles);
+                displayResults(ecoles);
+
+                // Recherche par nom
+                document.getElementById('search').addEventListener('input', function() {
+                    const searchTerm = this.value.trim().toLowerCase();
+                    if (searchTerm === '') {
+                        applyFilters();
+                        return;
+                    }
+                    const filtered = ecoles.filter(ecole =>
+                        ecole["Nom de l'école"].toLowerCase().includes(searchTerm) ||
+                        (ecole["nom_etablissement"] && ecole["nom_etablissement"].toLowerCase().includes(searchTerm))
+                    );
+                    displayResults(filtered);
+                });
+
+                // Filtres
+                document.getElementById('comm
