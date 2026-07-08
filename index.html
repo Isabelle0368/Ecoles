@@ -1,5 +1,3 @@
-### **Code pour `index.html` :**
-```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -62,9 +60,15 @@
 
     <script>
         // Charger les données depuis le fichier JSON
-        fetch('ecoles.json')
-            .then(response => response.json())
+        fetch('fr-en-annuaire-education.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log("Données chargées avec succès :", data);
                 const ecoles = data;
                 populateFilters(ecoles);
                 displayResults(ecoles);
@@ -77,11 +81,106 @@
                         return;
                     }
                     const filtered = ecoles.filter(ecole =>
-                        ecole["Nom de l'école"].toLowerCase().includes(searchTerm) ||
-                        (ecole["nom_etablissement"] && ecole["nom_etablissement"].toLowerCase().includes(searchTerm))
+                        ecole.nom_etablissement.toLowerCase().includes(searchTerm)
                     );
                     displayResults(filtered);
                 });
 
                 // Filtres
-                document.getElementById('comm
+                document.getElementById('commune-filter').addEventListener('change', applyFilters);
+                document.getElementById('circonscription-filter').addEventListener('change', applyFilters);
+            })
+            .catch(error => {
+                console.error('Erreur lors du chargement des données :', error);
+                document.getElementById('results').innerHTML = `<p class="no-results">Erreur de chargement des données : ${error.message}. Vérifiez que le fichier fr-en-annuaire-education.json est présent.</p>`;
+            });
+
+        // Remplir les filtres avec les valeurs uniques
+        function populateFilters(ecoles) {
+            // Extraire les valeurs uniques pour les communes
+            const communes = [...new Set(ecoles.map(ecole => ecole.commune))].filter(commune => commune);
+            const communeFilter = document.getElementById('commune-filter');
+            communes.forEach(commune => {
+                const option = document.createElement('option');
+                option.value = commune;
+                option.textContent = commune;
+                communeFilter.appendChild(option);
+            });
+
+            // Extraire les valeurs uniques pour les circonscriptions
+            const circonscriptions = [...new Set(ecoles.map(ecole => ecole.circonscription))].filter(circonscription => circonscription);
+            const circonscriptionFilter = document.getElementById('circonscription-filter');
+            circonscriptions.forEach(circonscription => {
+                const option = document.createElement('option');
+                option.value = circonscription;
+                option.textContent = circonscription;
+                circonscriptionFilter.appendChild(option);
+            });
+        }
+
+        // Appliquer les filtres
+        function applyFilters() {
+            const searchTerm = document.getElementById('search').value.trim().toLowerCase();
+            const selectedCommune = document.getElementById('commune-filter').value;
+            const selectedCirconscription = document.getElementById('circonscription-filter').value;
+
+            fetch('fr-en-annuaire-education.json')
+                .then(response => response.json())
+                .then(ecoles => {
+                    let filtered = [...ecoles];
+
+                    if (searchTerm !== '') {
+                        filtered = filtered.filter(ecole =>
+                            ecole.nom_etablissement.toLowerCase().includes(searchTerm)
+                        );
+                    }
+
+                    if (selectedCommune !== '') {
+                        filtered = filtered.filter(ecole => ecole.commune === selectedCommune);
+                    }
+
+                    if (selectedCirconscription !== '') {
+                        filtered = filtered.filter(ecole => ecole.circonscription === selectedCirconscription);
+                    }
+
+                    displayResults(filtered);
+                });
+        }
+
+        // Réinitialiser les filtres
+        function resetFilters() {
+            document.getElementById('search').value = '';
+            document.getElementById('commune-filter').value = '';
+            document.getElementById('circonscription-filter').value = '';
+            fetch('fr-en-annuaire-education.json')
+                .then(response => response.json())
+                .then(ecoles => displayResults(ecoles));
+        }
+
+        // Afficher les résultats
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<p class="no-results">Aucun résultat trouvé.</p>';
+                return;
+            }
+
+            results.forEach(ecole => {
+                const div = document.createElement('div');
+                div.className = 'result';
+
+                // Afficher les informations de l'école
+                div.innerHTML = `
+                    <strong>${ecole.nom_etablissement}</strong><br>
+                    Commune : ${ecole.commune}<br>
+                    Circonscription : ${ecole.circonscription}<br>
+                    ${ecole.adresse_1 ? `<span class="coordinates">Adresse : ${ecole.adresse_1}</span>` : ''}
+                `;
+                resultsDiv.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html>
