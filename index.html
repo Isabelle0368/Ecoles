@@ -2,222 +2,270 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recherche d'écoles</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
-            max-width: 800px;
+            line-height: 1.6;
         }
-        #search {
-            padding: 10px;
-            width: 100%;
+        .search-container {
             margin-bottom: 20px;
-        }
-        .filters {
-            margin-bottom: 20px;
-        }
-        select, button {
-            padding: 8px;
-            margin-right: 10px;
-        }
-        .result {
-            margin-bottom: 10px;
-            padding: 10px;
+            padding: 15px;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 5px;
             background-color: #f9f9f9;
         }
-        .no-results {
-            color: #666;
-            font-style: italic;
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
         }
-        .coordinates {
-            font-size: 0.9em;
-            color: #555;
+        button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .result-container {
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
     <h1>Recherche d'écoles</h1>
 
-    <!-- Recherche par nom -->
-    <input type="text" id="search" placeholder="Rechercher une école par nom...">
-
-    <!-- Filtres par commune et circonscription -->
-    <div class="filters">
-        <select id="commune-filter">
-            <option value="">-- Filtrer par commune --</option>
-        </select>
-        <select id="circonscription-filter">
-            <option value="">-- Filtrer par circonscription --</option>
-        </select>
-        <button onclick="resetFilters()">Réinitialiser</button>
+    <!-- Section pour rechercher une école par nom -->
+    <div class="search-container">
+        <h2>Rechercher une école par nom</h2>
+        <input type="text" id="schoolName" placeholder="Nom de l'école">
+        <button onclick="searchSchoolByName()">Rechercher</button>
+        <div id="schoolResult" class="result-container"></div>
     </div>
 
-    <!-- Résultats -->
-    <div id="results"></div>
+    <!-- Section pour lister les écoles d'une circonscription -->
+    <div class="search-container">
+        <h2>Lister les écoles d'une circonscription</h2>
+        <input type="text" id="circonscription" placeholder="Nom de la circonscription">
+        <button onclick="listSchoolsByCirconscription()">Rechercher</button>
+        <div id="circonscriptionResult" class="result-container"></div>
+    </div>
+
+    <!-- Section pour lister les écoles d'une commune -->
+    <div class="search-container">
+        <h2>Lister les écoles d'une commune</h2>
+        <input type="text" id="commune" placeholder="Nom de la commune">
+        <button onclick="listSchoolsByCommune()">Rechercher</button>
+        <div id="communeResult" class="result-container"></div>
+    </div>
 
     <script>
-        // Charger les données depuis le fichier JSON
-        fetch('fr-en-annuaire-education.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP! statut: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log("Données chargées avec succès :", data);
-                if (!data || data.length === 0) {
-                    throw new Error("Le fichier JSON est vide ou incorrect.");
-                }
-                const ecoles = data;
-                populateFilters(ecoles);
-                displayResults(ecoles);
+        // Variable globale pour stocker les données du CSV
+        let schoolsData = [];
 
-                // Recherche par nom
-                document.getElementById('search').addEventListener('input', function() {
-                    const searchTerm = this.value.trim().toLowerCase();
-                    if (searchTerm === '') {
-                        applyFilters();
-                        return;
+        // Charger le fichier CSV
+        function loadCSV() {
+            // Remplacez cette partie par le chemin réel de votre fichier CSV
+            // Pour une iframe, vous pouvez héberger le fichier CSV sur un serveur ou utiliser un lien direct
+            fetch('fr-en-annuaire-education.csv')
+                .then(response => response.text())
+                .then(data => {
+                    // Parser le CSV
+                    const rows = data.split('\n');
+                    const headers = rows[0].split(';');
+
+                    // Extraire les données
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i].split(';');
+                        if (row.length === headers.length) {
+                            const school = {};
+                            for (let j = 0; j < headers.length; j++) {
+                                school[headers[j]] = row[j];
+                            }
+                            schoolsData.push(school);
+                        }
                     }
-                    const filtered = ecoles.filter(ecole =>
-                        ecole.nom_etablissement.toLowerCase().includes(searchTerm)
-                    );
-                    displayResults(filtered);
-                });
-
-                // Filtres
-                document.getElementById('commune-filter').addEventListener('change', applyFilters);
-                document.getElementById('circonscription-filter').addEventListener('change', applyFilters);
-            })
-            .catch(error => {
-                console.error('Erreur lors du chargement des données :', error);
-                document.getElementById('results').innerHTML = `<p class="no-results">Erreur de chargement des données : ${error.message}. Vérifiez que le fichier fr-en-annuaire-education.json est présent et correctement formaté.</p>`;
-            });
-
-        // Remplir les filtres avec les valeurs uniques
-        function populateFilters(ecoles) {
-            // Vérifier que les colonnes existent
-            if (!ecoles[0].hasOwnProperty('commune') && !ecoles[0].hasOwnProperty('Commune')) {
-                console.error("La colonne 'commune' est introuvable dans les données.");
-                return;
-            }
-
-            if (!ecoles[0].hasOwnProperty('circonscription') && !ecoles[0].hasOwnProperty('Circonscription')) {
-                console.error("La colonne 'circonscription' est introuvable dans les données.");
-                return;
-            }
-
-            // Déterminer les clés à utiliser
-            const communeKey = ecoles[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
-            const circonscriptionKey = ecoles[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
-
-            // Extraire les valeurs uniques pour les communes
-            const communes = [...new Set(ecoles.map(ecole => ecole[communeKey]))].filter(commune => commune);
-            const communeFilter = document.getElementById('commune-filter');
-            communes.forEach(commune => {
-                const option = document.createElement('option');
-                option.value = commune;
-                option.textContent = commune;
-                communeFilter.appendChild(option);
-            });
-
-            // Extraire les valeurs uniques pour les circonscriptions
-            const circonscriptions = [...new Set(ecoles.map(ecole => ecole[circonscriptionKey]))].filter(circonscription => circonscription);
-            const circonscriptionFilter = document.getElementById('circonscription-filter');
-            circonscriptions.forEach(circonscription => {
-                const option = document.createElement('option');
-                option.value = circonscription;
-                option.textContent = circonscription;
-                circonscriptionFilter.appendChild(option);
-            });
-        }
-
-        // Appliquer les filtres
-        function applyFilters() {
-            const searchTerm = document.getElementById('search').value.trim().toLowerCase();
-            const selectedCommune = document.getElementById('commune-filter').value;
-            const selectedCirconscription = document.getElementById('circonscription-filter').value;
-
-            fetch('fr-en-annuaire-education.json')
-                .then(response => response.json())
-                .then(ecoles => {
-                    if (!ecoles || ecoles.length === 0) {
-                        throw new Error("Le fichier JSON est vide ou incorrect.");
-                    }
-
-                    let filtered = [...ecoles];
-
-                    if (searchTerm !== '') {
-                        filtered = filtered.filter(ecole =>
-                            ecole.nom_etablissement.toLowerCase().includes(searchTerm)
-                        );
-                    }
-
-                    if (selectedCommune !== '') {
-                        const communeKey = ecoles[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
-                        filtered = filtered.filter(ecole => ecole[communeKey] === selectedCommune);
-                    }
-
-                    if (selectedCirconscription !== '') {
-                        const circonscriptionKey = ecoles[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
-                        filtered = filtered.filter(ecole => ecole[circonscriptionKey] === selectedCirconscription);
-                    }
-
-                    displayResults(filtered);
+                    console.log('Données chargées avec succès !');
                 })
                 .catch(error => {
-                    console.error('Erreur lors de l\'application des filtres :', error);
-                    document.getElementById('results').innerHTML = `<p class="no-results">Erreur lors de l'application des filtres : ${error.message}</p>`;
+                    console.error('Erreur lors du chargement du fichier CSV :', error);
                 });
         }
 
-        // Réinitialiser les filtres
-        function resetFilters() {
-            document.getElementById('search').value = '';
-            document.getElementById('commune-filter').value = '';
-            document.getElementById('circonscription-filter').value = '';
-            fetch('fr-en-annuaire-education.json')
-                .then(response => response.json())
-                .then(ecoles => displayResults(ecoles))
-                .catch(error => {
-                    console.error('Erreur lors de la réinitialisation des filtres :', error);
-                    document.getElementById('results').innerHTML = `<p class="no-results">Erreur lors de la réinitialisation des filtres : ${error.message}</p>`;
-                });
-        }
+        // Rechercher une école par nom
+        function searchSchoolByName() {
+            const schoolName = document.getElementById('schoolName').value.toLowerCase();
+            const resultDiv = document.getElementById('schoolResult');
 
-        // Afficher les résultats
-        function displayResults(results) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
-
-            if (results.length === 0) {
-                resultsDiv.innerHTML = '<p class="no-results">Aucun résultat trouvé.</p>';
+            if (!schoolName) {
+                resultDiv.innerHTML = '<p>Veuillez entrer un nom d\'école.</p>';
                 return;
             }
 
-            // Déterminer les clés à utiliser
-            const communeKey = results[0].hasOwnProperty('commune') ? 'commune' : 'Commune';
-            const circonscriptionKey = results[0].hasOwnProperty('circonscription') ? 'circonscription' : 'Circonscription';
-            const adresseKey = results[0].hasOwnProperty('adresse_1') ? 'adresse_1' : 'adresse';
+            const results = schoolsData.filter(school =>
+                school['Nom de l\'école'] && school['Nom de l\'école'].toLowerCase().includes(schoolName)
+            );
 
-            results.forEach(ecole => {
-                const div = document.createElement('div');
-                div.className = 'result';
-
-                // Afficher les informations de l'école
-                div.innerHTML = `
-                    <strong>${ecole.nom_etablissement}</strong><br>
-                    Commune : ${ecole[communeKey]}<br>
-                    Circonscription : ${ecole[circonscriptionKey]}<br>
-                    ${ecole[adresseKey] ? `<span class="coordinates">Adresse : ${ecole[adresseKey]}</span>` : ''}
+            if (results.length === 0) {
+                resultDiv.innerHTML = '<p>Aucune école trouvée avec ce nom.</p>';
+            } else {
+                let tableHTML = `
+                    <h3>Résultats pour "${schoolName}"</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nom de l'école</th>
+                                <th>Circonscription</th>
+                                <th>Commune</th>
+                                <th>Adresse</th>
+                                <th>Téléphone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                 `;
-                resultsDiv.appendChild(div);
-            });
+
+                results.forEach(school => {
+                    tableHTML += `
+                        <tr>
+                            <td>${school['Nom de l\'école'] || 'N/A'}</td>
+                            <td>${school['Circonscription'] || 'N/A'}</td>
+                            <td>${school['Commune'] || 'N/A'}</td>
+                            <td>${school['Adresse'] || 'N/A'}</td>
+                            <td>${school['Téléphone'] || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                resultDiv.innerHTML = tableHTML;
+            }
         }
+
+        // Lister les écoles d'une circonscription
+        function listSchoolsByCirconscription() {
+            const circonscription = document.getElementById('circonscription').value.toLowerCase();
+            const resultDiv = document.getElementById('circonscriptionResult');
+
+            if (!circonscription) {
+                resultDiv.innerHTML = '<p>Veuillez entrer une circonscription.</p>';
+                return;
+            }
+
+            const results = schoolsData.filter(school =>
+                school['Circonscription'] && school['Circonscription'].toLowerCase().includes(circonscription)
+            );
+
+            if (results.length === 0) {
+                resultDiv.innerHTML = '<p>Aucune école trouvée pour cette circonscription.</p>';
+            } else {
+                let tableHTML = `
+                    <h3>Écoles de la circonscription "${circonscription}"</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nom de l'école</th>
+                                <th>Commune</th>
+                                <th>Adresse</th>
+                                <th>Téléphone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                results.forEach(school => {
+                    tableHTML += `
+                        <tr>
+                            <td>${school['Nom de l\'école'] || 'N/A'}</td>
+                            <td>${school['Commune'] || 'N/A'}</td>
+                            <td>${school['Adresse'] || 'N/A'}</td>
+                            <td>${school['Téléphone'] || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                resultDiv.innerHTML = tableHTML;
+            }
+        }
+
+        // Lister les écoles d'une commune
+        function listSchoolsByCommune() {
+            const commune = document.getElementById('commune').value.toLowerCase();
+            const resultDiv = document.getElementById('communeResult');
+
+            if (!commune) {
+                resultDiv.innerHTML = '<p>Veuillez entrer une commune.</p>';
+                return;
+            }
+
+            const results = schoolsData.filter(school =>
+                school['Commune'] && school['Commune'].toLowerCase().includes(commune)
+            );
+
+            if (results.length === 0) {
+                resultDiv.innerHTML = '<p>Aucune école trouvée pour cette commune.</p>';
+            } else {
+                let tableHTML = `
+                    <h3>Écoles de la commune "${commune}"</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nom de l'école</th>
+                                <th>Circonscription</th>
+                                <th>Adresse</th>
+                                <th>Téléphone</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                results.forEach(school => {
+                    tableHTML += `
+                        <tr>
+                            <td>${school['Nom de l\'école'] || 'N/A'}</td>
+                            <td>${school['Circonscription'] || 'N/A'}</td>
+                            <td>${school['Adresse'] || 'N/A'}</td>
+                            <td>${school['Téléphone'] || 'N/A'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                resultDiv.innerHTML = tableHTML;
+            }
+        }
+
+        // Charger le CSV au démarrage
+        window.onload = loadCSV;
     </script>
 </body>
 </html>
